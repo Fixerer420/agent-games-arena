@@ -16,7 +16,11 @@ def list_games():
         {'type': 'numberguess', 'name': 'Number Guessing', 'players': 2},
         {'type': 'memory', 'name': 'Memory Game', 'players': 2},
         {'type': 'battleship', 'name': 'Battleship', 'players': 2},
-        {'type': 'mastermind', 'name': 'Mastermind', 'players': 2}
+        {'type': 'mastermind', 'name': 'Mastermind', 'players': 2},
+        {'type': 'checkers', 'name': 'Checkers', 'players': 2},
+        {'type': 'chess', 'name': 'Chess (5x5)', 'players': 2},
+        {'type': 'snake', 'name': 'Snake', 'players': 1},
+        {'type': 'pong', 'name': 'Pong', 'players': 2}
     ])
 
 @bp.route('/<int:game_id>', methods=['GET'])

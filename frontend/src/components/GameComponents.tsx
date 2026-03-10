@@ -436,6 +436,130 @@ export function MastermindGame({ gameState, onMove, currentPlayer }: {
   )
 }
 
+// ============ CHECKERS ============
+
+export function CheckersGame({ gameState, onMove, currentPlayer }: { 
+  gameState: any, 
+  onMove: (move: {from: number[], to: number[]}) => void,
+  currentPlayer: number 
+}) {
+  const state = typeof gameState === 'string' ? JSON.parse(gameState) : gameState
+  const board = state.board || []
+  
+  const getPiece = (cell: number) => {
+    if (cell === 1) return '🔴'
+    if (cell === 2) return '⚫'
+    return ''
+  }
+  
+  return (
+    <div className="text-center">
+      <div className="text-xl mb-4">
+        Current Turn: Player {currentPlayer}
+      </div>
+      <div className="inline-grid grid-cols-8 gap-0.5 bg-gray-700 p-1 rounded">
+        {board.map((row: number[], r: number) => 
+          row.map((cell: number, c: number) => (
+            <div key={`${r}-${c}`} className={`w-8 h-8 flex items-center justify-center text-xl ${(r + c) % 2 === 0 ? 'bg-amber-100' : 'bg-amber-700'}`}>
+              {getPiece(cell)}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ============ CHESS (5x5) ============
+
+export function ChessGame({ gameState, onMove, currentPlayer }: { 
+  gameState: any, 
+  onMove: (move: {from: number[], to: number[]}) => void,
+  currentPlayer: number 
+}) {
+  const state = typeof gameState === 'string' ? JSON.parse(gameState) : gameState
+  const board = state.board || []
+  
+  const getPiece = (cell: string | null) => cell || ''
+  
+  return (
+    <div className="text-center">
+      <div className="text-xl mb-4">Turn: {state.current_player}</div>
+      <div className="inline-grid grid-cols-5 gap-0.5 bg-gray-700 p-1 rounded">
+        {board.map((row: (string | null)[], r: number) => 
+          row.map((cell: string | null, c: number) => (
+            <div key={`${r}-${c}`} className={`w-12 h-12 flex items-center justify-center text-2xl ${(r + c) % 2 === 0 ? 'bg-amber-100' : 'bg-amber-700'}`}>
+              {getPiece(cell)}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ============ SNAKE ============
+
+export function SnakeGame({ gameState, onMove, currentPlayer }: { 
+  gameState: any, 
+  onMove: (direction: string) => void,
+  currentPlayer: number 
+}) {
+  const state = typeof gameState === 'string' ? JSON.parse(gameState) : gameState
+  const snake = state.snake || []
+  const food = state.food || []
+  
+  return (
+    <div className="text-center">
+      <div className="text-xl mb-4">Score: {state.score}</div>
+      <div className="inline-grid grid-cols-15 gap-0.5 bg-gray-900 p-1 rounded">
+        {Array(15).fill(0).map((_, r) => 
+          Array(15).fill(0).map((_, c) => {
+            const isSnake = snake.some((s: number[]) => s[0] === r && s[1] === c)
+            const isFood = food[0] === r && food[1] === c
+            return <div key={`${r}-${c}`} className={`w-4 h-4 ${isSnake ? 'bg-green-500' : isFood ? 'bg-red-500' : 'bg-gray-800'}`} />
+          })
+        )}
+      </div>
+      <div className="mt-2 flex justify-center gap-2">
+        {['up', 'down', 'left', 'right'].map(d => (
+          <button key={d} onClick={() => onMove(d)} className="px-3 py-1 bg-blue-600 rounded">{d}</button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ============ PONG ============
+
+export function PongGame({ gameState, onMove, currentPlayer }: { 
+  gameState: any, 
+  onMove: (direction: string) => void,
+  currentPlayer: number 
+}) {
+  const state = typeof gameState === 'string' ? JSON.parse(gameState) : gameState
+  
+  return (
+    <div className="text-center">
+      <div className="text-xl mb-4">P1: {state.p1_score} | P2: {state.p2_score}</div>
+      <div className="inline-grid bg-gray-900 p-1 rounded" style={{gridTemplateColumns: 'repeat(15, 1fr)', width: '240px'}}>
+        {Array(10).fill(0).map((_, r) => 
+          Array(15).fill(0).map((_, c) => {
+            const isP1 = c === 0 && r >= state.p1_y && r < state.p1_y + 3
+            const isP2 = c === 14 && r >= state.p2_y && r < state.p2_y + 3
+            const isBall = c === state.ball_x && r === state.ball_y
+            return <div key={`${r}-${c}`} className={`w-4 h-4 ${isP1 ? 'bg-blue-500' : isP2 ? 'bg-red-500' : isBall ? 'bg-white' : 'bg-gray-800'}`} />
+          })
+        )}
+      </div>
+      <div className="mt-2 flex justify-center gap-2">
+        <button onClick={() => onMove('up')} className="px-3 py-1 bg-blue-600 rounded">↑</button>
+        <button onClick={() => onMove('down')} className="px-3 py-1 bg-blue-600 rounded">↓</button>
+      </div>
+    </div>
+  )
+}
+
 // ============ GAME COMPONENT SELECTOR ============
 
 export function GameComponent({ gameType, gameState, onMove, currentPlayer }: {
@@ -459,6 +583,14 @@ export function GameComponent({ gameType, gameState, onMove, currentPlayer }: {
       return <BattleshipGame gameState={gameState} onMove={onMove} currentPlayer={currentPlayer} />
     case 'mastermind':
       return <MastermindGame gameState={gameState} onMove={onMove} currentPlayer={currentPlayer} />
+    case 'checkers':
+      return <CheckersGame gameState={gameState} onMove={onMove} currentPlayer={currentPlayer} />
+    case 'chess':
+      return <ChessGame gameState={gameState} onMove={onMove} currentPlayer={currentPlayer} />
+    case 'snake':
+      return <SnakeGame gameState={gameState} onMove={onMove} currentPlayer={currentPlayer} />
+    case 'pong':
+      return <PongGame gameState={gameState} onMove={onMove} currentPlayer={currentPlayer} />
     default:
       return <div>Unknown game: {gameType}</div>
   }

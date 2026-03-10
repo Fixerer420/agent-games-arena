@@ -625,6 +625,489 @@ class Mastermind:
         return state, None
 
 
+class Checkers:
+    """Checkers/Draughts Game (8x8)"""
+    
+    BOARD_SIZE = 8
+    
+    @staticmethod
+    def get_initial_state():
+        # Create board with pieces
+        # 0 = empty, 1 = player 1 (red), 2 = player 2 (black)
+        board = [[0] * Checkers.BOARD_SIZE for _ in range(Checkers.BOARD_SIZE)]
+        
+        # Place pieces
+        for row in range(Checkers.BOARD_SIZE):
+            for col in range(Checkers.BOARD_SIZE):
+                if (row + col) % 2 == 1:
+                    if row < 3:
+                        board[row][col] = 1  # Player 1
+                    elif row > 4:
+                        board[row][col] = 2  # Player 2
+        
+        return {
+            'board': board,
+            'current_player': 1,
+            'selected_piece': None,
+            'valid_moves': [],
+            'moves': [],
+            'p1_captured': 0,
+            'p2_captured': 0
+        }
+    
+    @staticmethod
+    def get_valid_moves(board, player):
+        moves = []
+        direction = -1 if player == 1 else 1
+        
+        for row in range(Checkers.BOARD_SIZE):
+            for col in range(Checkers.BOARD_SIZE):
+                if board[row][col] == player:
+                    # Regular moves
+                    for dc in [-1, 1]:
+                        new_row = row + direction
+                        if 0 <= new_row < Checkers.BOARD_SIZE:
+                            new_col = col + dc
+                            if 0 <= new_col < Checkers.BOARD_SIZE and board[new_row][new_col] == 0:
+                                moves.append({
+                                    'from': (row, col),
+                                    'to': (new_row, new_col),
+                                    'jump': False
+                                })
+                    
+                    # Jump moves
+                    for dc in [-1, 1]:
+                        new_row = row + (direction * 2)
+                        new_col = col + (dc * 2)
+                        mid_row = row + direction
+                        mid_col = col + dc
+                        if 0 <= new_row < Checkers.BOARD_SIZE and 0 <= new_col < Checkers.BOARD_SIZE:
+                            mid_piece = board[mid_row][mid_col]
+                            target_piece = board[new_row][new_col]
+                            if mid_piece != 0 and mid_piece != player and target_piece == 0:
+                                moves.append({
+                                    'from': (row, col),
+                                    'to': (new_row, new_col),
+                                    'jump': True,
+                                    'captured': (mid_row, mid_col)
+                                })
+        
+        return moves
+    
+    @staticmethod
+    def validate_move(state, move_data):
+        state = json.loads(state) if isinstance(state, str) else state
+        if not move_data or 'to' not in move_data:
+            return False
+        
+        valid_moves = Checkers.get_valid_moves(state['board'], state['current_player'])
+        target = move_data['to']
+        
+        for vm in valid_moves:
+            if vm['to'] == tuple(target):
+                return True
+        return False
+    
+    @staticmethod
+    def make_move(state, player, move_data):
+        state = json.loads(state) if isinstance(state, str) else state
+        
+        if not Checkers.validate_move(state, move_data):
+            return None, "Invalid move"
+        
+        board = state['board']
+        from_pos = move_data.get('from')
+        to_pos = move_data['to']
+        
+        if from_pos:
+            row, col = from_pos
+            to_row, to_col = to_pos
+        else:
+            return None, "Invalid move data"
+        
+        # Move piece
+        board[to_row][to_col] = board[row][col]
+        board[row][col] = 0
+        
+        # Handle capture
+        if move_data.get('jump'):
+            mid_row = (row + to_row) // 2
+            mid_col = (col + to_col) // 2
+            captured = board[mid_row][mid_col]
+            board[mid_row][mid_col] = 0
+            
+            if player == 1:
+                state['p1_captured'] += 1
+            else:
+                state['p2_captured'] += 1
+        
+        state['moves'].append({
+            'player': player,
+            'from': from_pos,
+            'to': to_pos
+        })
+        
+        # Check for king (reached end)
+        if player == 1 and to_row == 0:
+            board[to_row][to_col] = 1  # Keep as piece (could add king marker)
+        elif player == 2 and to_row == Checkers.BOARD_SIZE - 1:
+            board[to_row][to_col] = 2
+        
+        # Switch player
+        state['current_player'] = 2 if player == 1 else 1
+        
+        # Check win (opponent has no pieces)
+        p1_pieces = sum(row.count(1) for row in board)
+        p2_pieces = sum(row.count(2) for row in board)
+        
+        if p1_pieces == 0:
+            state['game_over'] = True
+            state['winner'] = 2
+        elif p2_pieces == 0:
+            state['game_over'] = True
+            state['winner'] = 1
+        
+        return state, None
+
+
+class Chess:
+    """Simplified Chess (no castling, en passant) - 5x5 board for faster games"""
+    
+    BOARD_SIZE = 5
+    
+    @staticmethod
+    def get_initial_state():
+        # Simplified 5x5 board
+        board = [
+            ['♜', '♞', '♝', '♛', '♚'],
+            ['♟', '♟', '♟', '♟', '♟'],
+            [None, None, None, None, None],
+            ['♙', '♙', '♙', '♙', '♙'],
+            ['♖', '♘', '♗', '♕', '♔']
+        ]
+        
+        return {
+            'board': board,
+            'current_player': 'white',
+            'selected_piece': None,
+            'valid_moves': [],
+            'moves': [],
+            'captured_white': [],
+            'captured_black': []
+        }
+    
+    @staticmethod
+    def get_piece_moves(board, row, col):
+        piece = board[row][col]
+        if not piece:
+            return []
+        
+        moves = []
+        is_white = piece.isupper()
+        piece_type = piece.lower()
+        
+        # Simplified movement rules
+        for dr in [-1, 0, 1]:
+            for dc in [-1, 0, 1]:
+                if dr == 0 and dc == 0:
+                    continue
+                
+                new_row, new_col = row + dr, col + dc
+                
+                if 0 <= new_row < Chess.BOARD_SIZE and 0 <= new_col < Chess.BOARD_SIZE:
+                    target = board[new_row][new_col]
+                    
+                    if piece_type == '♟':  # Pawn
+                        direction = -1 if is_white else 1
+                        if dr == direction and dc == 0 and target is None:
+                            moves.append((new_row, new_col))
+                        elif dr == direction and abs(dc) == 1 and target is not None:
+                            moves.append((new_row, new_col))
+                    elif piece_type == '♜':  # Rook
+                        moves.extend(Chess.sliding_moves(board, row, col, dr, dc, is_white))
+                    elif piece_type == '♞':  # Knight
+                        if (abs(dr), abs(dc)) in [(1, 2), (2, 1)]:
+                            if target is None or (target.isupper()) != is_white:
+                                moves.append((new_row, new_col))
+                    elif piece_type == '♝':  # Bishop
+                        moves.extend(Chess.sliding_moves(board, row, col, dr, dc, is_white))
+                    elif piece_type == '♛':  # Queen
+                        moves.extend(Chess.sliding_moves(board, row, col, dr, dc, is_white))
+                    elif piece_type == '♚':  # King
+                        if abs(dr) <= 1 and abs(dc) <= 1:
+                            if target is None or (target.isupper()) != is_white:
+                                moves.append((new_row, new_col))
+        
+        return moves
+    
+    @staticmethod
+    def sliding_moves(board, row, col, dr, dc, is_white):
+        moves = []
+        new_row, new_col = row + dr, col + dc
+        
+        while 0 <= new_row < Chess.BOARD_SIZE and 0 <= new_col < Chess.BOARD_SIZE:
+            target = board[new_row][new_col]
+            
+            if target is None:
+                moves.append((new_row, new_col))
+            else:
+                if (target.isupper()) != is_white:
+                    moves.append((new_row, new_col))
+                break
+            
+            new_row += dr
+            new_col += dc
+        
+        return moves
+    
+    @staticmethod
+    def validate_move(state, move_data):
+        state = json.loads(state) if isinstance(state, str) else state
+        if 'from' not in move_data or 'to' not in move_data:
+            return False
+        
+        from_pos = tuple(move_data['from'])
+        to_pos = tuple(move_data['to'])
+        
+        valid_moves = Chess.get_piece_moves(state['board'], from_pos[0], from_pos[1])
+        return to_pos in valid_moves
+    
+    @staticmethod
+    def make_move(state, player, move_data):
+        state = json.loads(state) if isinstance(state, str) else state
+        
+        if not Chess.validate_move(state, move_data):
+            return None, "Invalid move"
+        
+        board = state['board']
+        from_pos = tuple(move_data['from'])
+        to_pos = tuple(move_data['to'])
+        
+        piece = board[from_pos[0]][from_pos[1]]
+        target = board[to_pos[0]][to_pos[1]]
+        
+        # Capture
+        if target:
+            if player == 'white':
+                state['captured_white'].append(target)
+            else:
+                state['captured_black'].append(target)
+        
+        # Move piece
+        board[to_pos[0]][to_pos[1]] = piece
+        board[from_pos[0]][from_pos[1]] = None
+        
+        state['moves'].append({
+            'player': player,
+            'from': from_pos,
+            'to': to_pos,
+            'piece': piece
+        })
+        
+        # Switch player
+        state['current_player'] = 'black' if player == 'white' else 'white'
+        
+        # Check win (king captured - simplified)
+        white_king = any('♔' in row for row in board)
+        black_king = any('♚' in row for row in board)
+        
+        if not white_king:
+            state['game_over'] = True
+            state['winner'] = 'black'
+        elif not black_king:
+            state['game_over'] = True
+            state['winner'] = 'white'
+        
+        return state, None
+
+
+class Snake:
+    """Snake Game - Eat food, grow, avoid walls and self"""
+    
+    BOARD_SIZE = 15
+    
+    @staticmethod
+    def get_initial_state():
+        import random
+        return {
+            'snake': [[7, 7], [7, 8], [7, 9]],  # Head at front
+            'food': [3, 3],
+            'direction': 'up',  # up, down, left, right
+            'next_direction': 'up',
+            'score': 0,
+            'game_over': False,
+            'moves': 0,
+            'max_moves': 1000  # Game ends after this many moves
+        }
+    
+    @staticmethod
+    def validate_move(state, direction):
+        state = json.loads(state) if isinstance(state, str) else state
+        valid = ['up', 'down', 'left', 'right']
+        if direction not in valid:
+            return False
+        # Can't reverse direction
+        opposites = {'up': 'down', 'down': 'up', 'left': 'right', 'right': 'left'}
+        if direction == opposites.get(state['direction']):
+            return False
+        return True
+    
+    @staticmethod
+    def make_move(state, player, direction):
+        state = json.loads(state) if isinstance(state, str) else state
+        
+        if state.get('game_over'):
+            return None, "Game is over"
+        
+        if not Snake.validate_move(state, direction):
+            return None, "Invalid direction"
+        
+        state['direction'] = direction
+        
+        # Calculate new head position
+        head = state['snake'][0][:]
+        if direction == 'up':
+            head[0] -= 1
+        elif direction == 'down':
+            head[0] += 1
+        elif direction == 'left':
+            head[1] -= 1
+        elif direction == 'right':
+            head[1] += 1
+        
+        # Check wall collision
+        if head[0] < 0 or head[0] >= Snake.BOARD_SIZE or head[1] < 0 or head[1] >= Snake.BOARD_SIZE:
+            state['game_over'] = True
+            return state, None
+        
+        # Check self collision
+        if head in state['snake']:
+            state['game_over'] = True
+            return state, None
+        
+        # Move snake
+        state['snake'].insert(0, head)
+        
+        # Check food
+        if head == state['food']:
+            state['score'] += 1
+            # Generate new food
+            import random
+            while True:
+                food = [random.randint(0, Snake.BOARD_SIZE - 1), random.randint(0, Snake.BOARD_SIZE - 1)]
+                if food not in state['snake']:
+                    state['food'] = food
+                    break
+        else:
+            state['snake'].pop()  # Remove tail
+        
+        state['moves'] += 1
+        
+        # Check max moves
+        if state['moves'] >= state['max_moves']:
+            state['game_over'] = True
+        
+        return state, None
+
+
+class Pong:
+    """Pong Game - Classic paddle game"""
+    
+    BOARD_WIDTH = 15
+    BOARD_HEIGHT = 10
+    PADDLE_HEIGHT = 3
+    
+    @staticmethod
+    def get_initial_state():
+        import random
+        return {
+            'p1_y': Pong.BOARD_HEIGHT // 2 - 1,
+            'p2_y': Pong.BOARD_HEIGHT // 2 - 1,
+            'ball_x': Pong.BOARD_WIDTH // 2,
+            'ball_y': Pong.BOARD_HEIGHT // 2,
+            'ball_dx': 1 if random.random() > 0.5 else -1,
+            'ball_dy': 0,
+            'p1_score': 0,
+            'p2_score': 0,
+            'current_player': 1,  # Who's turn to serve
+            'max_score': 5
+        }
+    
+    @staticmethod
+    def validate_move(state, move_data):
+        # Move: 'up' or 'down'
+        return move_data in ['up', 'down']
+    
+    @staticmethod
+    def make_move(state, player, direction):
+        state = json.loads(state) if isinstance(state, str) else state
+        
+        if not Pong.validate_move(state, direction):
+            return None, "Invalid move"
+        
+        # Move paddle
+        if player == 1:
+            if direction == 'up' and state['p1_y'] > 0:
+                state['p1_y'] -= 1
+            elif direction == 'down' and state['p1_y'] < Pong.BOARD_HEIGHT - Pong.PADDLE_HEIGHT:
+                state['p1_y'] += 1
+        else:
+            if direction == 'up' and state['p2_y'] > 0:
+                state['p2_y'] -= 1
+            elif direction == 'down' and state['p2_y'] < Pong.BOARD_HEIGHT - Pong.PADDLE_HEIGHT:
+                state['p2_y'] += 1
+        
+        # Move ball (simplified - only moves every other turn for easier gameplay)
+        # In real version, ball would move automatically with timing
+        # Here we advance ball after each paddle move
+        
+        # Check paddle collision
+        ball_y = state['ball_y']
+        ball_x = state['ball_x']
+        
+        # Player 1 paddle (left)
+        if ball_x == 1:
+            if state['p1_y'] <= ball_y < state['p1_y'] + Pong.PADDLE_HEIGHT:
+                state['ball_dx'] = 1
+                state['ball_dy'] = (ball_y - (state['p1_y'] + 1))
+        
+        # Player 2 paddle (right)
+        if ball_x == Pong.BOARD_WIDTH - 2:
+            if state['p2_y'] <= ball_y < state['p2_y'] + Pong.PADDLE_HEIGHT:
+                state['ball_dx'] = -1
+                state['ball_dy'] = (ball_y - (state['p2_y'] + 1))
+        
+        # Update ball position
+        state['ball_x'] += state['ball_dx']
+        state['ball_y'] += state['ball_dy']
+        
+        # Bounce off top/bottom
+        if state['ball_y'] <= 0 or state['ball_y'] >= Pong.BOARD_HEIGHT - 1:
+            state['ball_dy'] = -state['ball_dy']
+        
+        # Score
+        if state['ball_x'] < 0:
+            state['p2_score'] += 1
+            state['ball_x'] = Pong.BOARD_WIDTH // 2
+            state['ball_y'] = Pong.BOARD_HEIGHT // 2
+            state['ball_dx'] = 1
+        elif state['ball_x'] >= Pong.BOARD_WIDTH:
+            state['p1_score'] += 1
+            state['ball_x'] = Pong.BOARD_WIDTH // 2
+            state['ball_y'] = Pong.BOARD_HEIGHT // 2
+            state['ball_dx'] = -1
+        
+        # Check win
+        if state['p1_score'] >= state['max_score']:
+            state['game_over'] = True
+            state['winner'] = 1
+        elif state['p2_score'] >= state['max_score']:
+            state['game_over'] = True
+            state['winner'] = 2
+        
+        return state, None
+
+
 # Game registry
 GAMES = {
     'rps': RockPaperScissors,
@@ -633,7 +1116,11 @@ GAMES = {
     'numberguess': NumberGuessing,
     'memory': MemoryGame,
     'battleship': Battleship,
-    'mastermind': Mastermind
+    'mastermind': Mastermind,
+    'checkers': Checkers,
+    'chess': Chess,
+    'snake': Snake,
+    'pong': Pong
 }
 
 def get_game(game_type):
