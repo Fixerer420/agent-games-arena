@@ -1,7 +1,7 @@
 // Game Components
 // RockPaperScissors, TicTacToe, ConnectFour, NumberGuessing, Memory
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 // ============ ROCK PAPER SCISSORS ============
 
@@ -277,6 +277,167 @@ export function MemoryGame({ gameState, onMove, currentPlayer }: {
 
 // ============ GAME COMPONENT SELECTOR ============
 
+// Add before the GameComponent selector:
+
+// ============ BATTLESHIP ============
+
+export function BattleshipGame({ gameState, onMove, currentPlayer }: { 
+  gameState: any, 
+  onMove: (move: {row: number, col: number}) => void,
+  currentPlayer: number 
+}) {
+  const state = typeof gameState === 'string' ? JSON.parse(gameState) : gameState
+  const [targetRow, setTargetRow] = useState(0)
+  const [targetCol, setTargetCol] = useState(0)
+  
+  // Get opponent's board for viewing
+  const myBoard = currentPlayer === 1 ? state.p1_board : state.p2_board
+  const myHits = currentPlayer === 1 ? state.p1_hits : state.p2_hits
+  const enemyBoard = currentPlayer === 1 ? state.p2_board : state.p1_board
+  const enemyHits = currentPlayer === 1 ? state.p2_hits : state.p1_hits
+  
+  const getCellContent = (isMyBoard: boolean, row: number, col: number) => {
+    const board = isMyBoard ? myBoard : enemyBoard
+    const hits = isMyBoard ? myHits : enemyHits
+    
+    if (hits[row][col]) {
+      return board[row][col] === 'ship' ? '💥' : '💦'
+    }
+    if (isMyBoard && board[row][col] === 'ship') {
+      return '🚢'
+    }
+    return ''
+  }
+  
+  return (
+    <div className="text-center">
+      <div className="text-xl mb-4">
+        Current Turn: Player {currentPlayer}
+      </div>
+      
+      <div className="flex justify-center gap-8">
+        {/* My Board */}
+        <div>
+          <h4 className="mb-2">Your Fleet</h4>
+          <div className="inline-grid grid-cols-10 gap-0.5 bg-gray-700 p-1 rounded">
+            {myBoard.map((row: string[], r: number) => 
+              row.map((cell: string, c: number) => (
+                <div
+                  key={`my-${r}-${c}`}
+                  className="w-6 h-6 bg-blue-800 rounded flex items-center justify-center text-sm"
+                >
+                  {getCellContent(true, r, c)}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+        
+        {/* Enemy Board */}
+        <div>
+          <h4 className="mb-2">Enemy Waters</h4>
+          <div className="inline-grid grid-cols-10 gap-0.5 bg-gray-700 p-1 rounded">
+            {enemyBoard.map((row: string[], r: number) => 
+              row.map((cell: string, c: number) => (
+                <button
+                  key={`enemy-${r}-${c}`}
+                  onClick={() => onMove({row: r, col: c})}
+                  disabled={state.game_over || enemyHits[r][c]}
+                  className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center text-sm hover:bg-blue-500 disabled:opacity-50"
+                >
+                  {getCellContent(false, r, c)}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+      
+      {state.game_over && (
+        <div className="text-xl text-yellow-400 mt-4">
+          Player {state.winner} Wins!
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============ MASTERMIND ============
+
+const COLORS = ['🔴', '🟡', '🟢', '🔵', '🟣', '🟤']
+
+export function MastermindGame({ gameState, onMove, currentPlayer }: { 
+  gameState: any, 
+  onMove: (guess: string[]) => void,
+  currentPlayer: number 
+}) {
+  const state = typeof gameState === 'string' ? JSON.parse(gameState) : gameState
+  const [guess, setGuess] = useState<string[]>([COLORS[0], COLORS[0], COLORS[0], COLORS[0]])
+  
+  const guesses = currentPlayer === 1 ? state.guesses_p1 : state.guesses_p2
+  const results = currentPlayer === 1 ? state.results_p1 : state.results_p2
+  
+  const toggleColor = (idx: number) => {
+    const newGuess = [...guess]
+    const currentIdx = COLORS.indexOf(newGuess[idx])
+    newGuess[idx] = COLORS[(currentIdx + 1) % COLORS.length]
+    setGuess(newGuess)
+  }
+  
+  return (
+    <div className="text-center">
+      <div className="text-xl mb-4">
+        Round: {state.round}/10 | Current Turn: Player {currentPlayer}
+      </div>
+      
+      {/* Color picker */}
+      <div className="mb-6">
+        <p className="mb-2">Select your code:</p>
+        <div className="flex justify-center gap-2 mb-4">
+          {guess.map((color, idx) => (
+            <button
+              key={idx}
+              onClick={() => toggleColor(idx)}
+              className="w-12 h-12 text-2xl bg-gray-700 rounded hover:bg-gray-600"
+            >
+              {color}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => onMove(guess)}
+          disabled={state.game_over}
+          className="px-6 py-2 bg-green-600 rounded hover:bg-green-700"
+        >
+          Submit Guess
+        </button>
+      </div>
+      
+      {/* Guess history */}
+      <div className="max-w-md mx-auto">
+        <h4 className="mb-2">Guess History:</h4>
+        {guesses?.map((g: string[], i: number) => (
+          <div key={i} className="flex justify-center gap-2 mb-2">
+            <span className="text-xl">{g.join(' ')}</span>
+            <span className="text-sm">
+              🎯 {results[i]?.exact || 0} exact | 🎨 {results[i]?.color || 0} color
+            </span>
+          </div>
+        ))}
+      </div>
+      
+      {state.game_over && (
+        <div className="text-xl text-yellow-400 mt-4">
+          {state.winner ? `Player ${state.winner} Wins!` : 'Game Over - No Winner!'}
+          <p className="text-sm">Secret code was: {state.secret_code?.join(' ')}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============ GAME COMPONENT SELECTOR ============
+
 export function GameComponent({ gameType, gameState, onMove, currentPlayer }: {
   gameType: string
   gameState: any
@@ -294,6 +455,10 @@ export function GameComponent({ gameType, gameState, onMove, currentPlayer }: {
       return <NumberGuessingGame gameState={gameState} onMove={onMove} currentPlayer={currentPlayer} />
     case 'memory':
       return <MemoryGame gameState={gameState} onMove={onMove} currentPlayer={currentPlayer} />
+    case 'battleship':
+      return <BattleshipGame gameState={gameState} onMove={onMove} currentPlayer={currentPlayer} />
+    case 'mastermind':
+      return <MastermindGame gameState={gameState} onMove={onMove} currentPlayer={currentPlayer} />
     default:
       return <div>Unknown game: {gameType}</div>
   }

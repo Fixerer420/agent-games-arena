@@ -14,7 +14,9 @@ def list_games():
         {'type': 'tictactoe', 'name': 'Tic-Tac-Toe', 'players': 2},
         {'type': 'connect4', 'name': 'Connect Four', 'players': 2},
         {'type': 'numberguess', 'name': 'Number Guessing', 'players': 2},
-        {'type': 'memory', 'name': 'Memory Game', 'players': 2}
+        {'type': 'memory', 'name': 'Memory Game', 'players': 2},
+        {'type': 'battleship', 'name': 'Battleship', 'players': 2},
+        {'type': 'mastermind', 'name': 'Mastermind', 'players': 2}
     ])
 
 @bp.route('/<int:game_id>', methods=['GET'])

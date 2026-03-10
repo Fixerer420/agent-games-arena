@@ -390,13 +390,250 @@ class MemoryGame:
         return state, None
 
 
+class Battleship:
+    """Battleship Game - Sink the enemy fleet"""
+    
+    BOARD_SIZE = 10
+    SHIPS = [5, 4, 3, 3, 2]  # Ship lengths
+    
+    @staticmethod
+    def get_initial_state():
+        import random
+        
+        def place_ships(board):
+            ships = []
+            for length in Battleship.SHIPS:
+                placed = False
+                while not placed:
+                    horizontal = random.choice([True, False])
+                    if horizontal:
+                        row = random.randint(0, Battleship.BOARD_SIZE - 1)
+                        col = random.randint(0, Battleship.BOARD_SIZE - length)
+                        if all(board[row][col + i] is None for i in range(length)):
+                            for i in range(length):
+                                board[row][col + i] = 'ship'
+                            ships.append({'row': row, 'col': col, 'length': length, 'horizontal': True})
+                            placed = True
+                    else:
+                        row = random.randint(0, Battleship.BOARD_SIZE - length)
+                        col = random.randint(0, Battleship.BOARD_SIZE - 1)
+                        if all(board[row + i][col] is None for i in range(length)):
+                            for i in range(length):
+                                board[row + i][col] = 'ship'
+                            ships.append({'row': row, 'col': col, 'length': length, 'horizontal': False})
+                            placed = True
+            return ships
+        
+        # Create empty boards
+        p1_board = [[None] * Battleship.BOARD_SIZE for _ in range(Battleship.BOARD_SIZE)]
+        p2_board = [[None] * Battleship.BOARD_SIZE for _ in range(Battleship.BOARD_SIZE)]
+        
+        p1_ships = place_ships([row[:] for row in p1_board])
+        p2_ships = place_ships([row[:] for row in p2_board])
+        
+        return {
+            'p1_board': p1_board,
+            'p2_board': p2_board,
+            'p1_ships': p1_ships,
+            'p2_ships': p2_ships,
+            'p1_hits': [[False] * Battleship.BOARD_SIZE for _ in range(Battleship.BOARD_SIZE)],
+            'p2_hits': [[False] * Battleship.BOARD_SIZE for _ in range(Battleship.BOARD_SIZE)],
+            'current_player': 1,
+            'shots_p1': [],
+            'shots_p2': [],
+            'p1_ships_sunk': [],
+            'p2_ships_sunk': [],
+            'moves': []
+        }
+    
+    @staticmethod
+    def validate_move(state, move_data):
+        state = json.loads(state) if isinstance(state, str) else state
+        row = move_data.get('row')
+        col = move_data.get('col')
+        
+        if row is None or col is None:
+            return False
+        if not (0 <= row < Battleship.BOARD_SIZE and 0 <= col < Battleship.BOARD_SIZE):
+            return False
+        
+        # Check if already shot here
+        shots = state['shots_p1'] if state['current_player'] == 1 else state['shots_p2']
+        if [row, col] in shots:
+            return False
+        
+        return True
+    
+    @staticmethod
+    def make_move(state, player, move_data):
+        state = json.loads(state) if isinstance(state, str) else state
+        
+        if not Battleship.validate_move(state, move_data):
+            return None, "Invalid move"
+        
+        row = move_data['row']
+        col = move_data['col']
+        
+        # Record shot
+        if player == 1:
+            state['shots_p1'].append([row, col])
+        else:
+            state['shots_p2'].append([row, col])
+        
+        state['moves'].append({'player': player, 'row': row, 'col': col})
+        
+        # Check hit/miss
+        target_board = state['p2_board'] if player == 1 else state['p1_board']
+        target_hits = state['p1_hits'] if player == 1 else state['p2_hits']
+        target_ships = state['p2_ships'] if player == 1 else state['p1_ships']
+        sunk_list = state['p2_ships_sunk'] if player == 1 else state['p1_ships_sunk']
+        
+        if target_board[row][col] == 'ship':
+            target_hits[row][col] = True
+            state['last_shot_result'] = 'hit'
+            
+            # Check if ship sunk
+            for ship in target_ships:
+                ship_hits = []
+                if ship['horizontal']:
+                    for i in range(ship['length']):
+                        if target_hits[ship['row']][ship['col'] + i]:
+                            ship_hits.append(True)
+                else:
+                    for i in range(ship['length']):
+                        if target_hits[ship['row'] + i][ship['col']]:
+                            ship_hits.append(True)
+                
+                if len(ship_hits) == ship['length'] and ship not in sunk_list:
+                    sunk_list.append(ship)
+                    state['last_shot_result'] = f'sunk_{ship["length"]}'
+        else:
+            state['last_shot_result'] = 'miss'
+            # Switch turns on miss
+            state['current_player'] = 2 if player == 1 else 1
+        
+        # Check win condition
+        p1_total_hits = sum(sum(row) for row in state['p1_hits'])
+        p2_total_hits = sum(sum(row) for row in state['p2_hits'])
+        
+        total_ship_cells = sum(Battleship.SHIPS)
+        
+        if p1_total_hits == total_ship_cells:
+            state['game_over'] = True
+            state['winner'] = 1
+        elif p2_total_hits == total_ship_cells:
+            state['game_over'] = True
+            state['winner'] = 2
+        
+        return state, None
+
+
+class Mastermind:
+    """Mastermind Code Breaking Game"""
+    
+    COLORS = ['🔴', '🟡', '🟢', '🔵', '🟣', '🟤']
+    CODE_LENGTH = 4
+    MAX_GUESSES = 10
+    
+    @staticmethod
+    def get_initial_state():
+        import random
+        # Generate secret code
+        code = [random.choice(Mastermind.COLORS) for _ in range(Mastermind.CODE_LENGTH)]
+        
+        return {
+            'secret_code': code,
+            'guesses_p1': [],
+            'guesses_p2': [],
+            'results_p1': [],
+            'results_p2': [],
+            'current_player': 1,
+            'round': 1,
+            'max_rounds': Mastermind.MAX_GUESSES
+        }
+    
+    @staticmethod
+    def validate_move(state, guess):
+        state = json.loads(state) if isinstance(state, str) else state
+        if not isinstance(guess, list) or len(guess) != Mastermind.CODE_LENGTH:
+            return False
+        for color in guess:
+            if color not in Mastermind.COLORS:
+                return False
+        return True
+    
+    @staticmethod
+    def check_guess(secret, guess):
+        """Returns (exact_matches, color_matches)"""
+        exact = sum(s == g for s, g in zip(secret, guess))
+        
+        # Count color matches (not exact positions)
+        secret_counts = {}
+        guess_counts = {}
+        
+        for c in secret:
+            secret_counts[c] = secret_counts.get(c, 0) + 1
+        for c in guess:
+            guess_counts[c] = guess_counts.get(c, 0) + 1
+        
+        color_matches = 0
+        for color in guess_counts:
+            if color in secret_counts:
+                color_matches += min(secret_counts[color], guess_counts[color])
+        
+        color_matches -= exact  # Remove exact matches
+        return exact, color_matches
+    
+    @staticmethod
+    def make_move(state, player, guess):
+        state = json.loads(state) if isinstance(state, str) else state
+        
+        if not Mastermind.validate_move(state, guess):
+            return None, "Invalid guess - must be 4 colors"
+        
+        secret = state['secret_code']
+        exact, color_matches = Mastermind.check_guess(secret, guess)
+        
+        result = {
+            'exact': exact,
+            'color': color_matches,
+            'black': exact,  # Standard Mastermind: black = exact, white = color
+            'white': color_matches
+        }
+        
+        if player == 1:
+            state['guesses_p1'].append(guess)
+            state['results_p1'].append(result)
+        else:
+            state['guesses_p2'].append(guess)
+            state['results_p2'].append(result)
+        
+        # Check win
+        if exact == Mastermind.CODE_LENGTH:
+            state['game_over'] = True
+            state['winner'] = player
+        else:
+            # Switch turns
+            total_guesses = len(state['guesses_p1']) + len(state['guesses_p2'])
+            if total_guesses >= Mastermind.MAX_GUESSES:
+                state['game_over'] = True
+                # No winner - code remains secret
+            else:
+                state['current_player'] = 2 if player == 1 else 1
+                state['round'] += 1
+        
+        return state, None
+
+
 # Game registry
 GAMES = {
     'rps': RockPaperScissors,
     'tictactoe': TicTacToe,
     'connect4': ConnectFour,
     'numberguess': NumberGuessing,
-    'memory': MemoryGame
+    'memory': MemoryGame,
+    'battleship': Battleship,
+    'mastermind': Mastermind
 }
 
 def get_game(game_type):
