@@ -6,16 +6,62 @@ import json
 import requests
 from typing import Optional
 
+
 class LLMProvider:
-    """OpenRouter LLM Integration"""
+    """Multi-provider LLM Integration (Ollama, OpenRouter, etc.)"""
     
-    def __init__(self, api_key: str = None):
-        self.api_key = api_key or os.environ.get('OPENROUTER_API_KEY', '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')  # 'free' for free tier
-        self.base_url = "https://openrouter.ai/api/v1"
+    def __init__(self, provider: str = "ollama", api_key: str = None):
+        self.provider = provider
+        
+        if provider == "ollama":
+            self.base_url = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
+            self.model = os.environ.get('OLLAMA_MODEL', 'llama3.2:1b')
+            self.api_key = ""
+        elif provider == "openrouter":
+            self.base_url = "https://openrouter.ai/api/v1"
+            self.api_key = api_key or os.environ.get('OPENROUTER_API_KEY', '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')
+            self.model = "z-ai/glm-4.5-air:free"
+        else:
+            self.base_url = ""
+            self.api_key = ""
+            self.model = ""
     
-    def chat(self, prompt: str, model: str = "openrouter/free") -> str:
+    def chat(self, prompt: str, model: str = None) -> str:
         """Send prompt to LLM and get response"""
         
+        if model:
+            self.model = model
+        
+        try:
+            if self.provider == "ollama":
+                return self._ollama_chat(prompt)
+            elif self.provider == "openrouter":
+                return self._openrouter_chat(prompt)
+            else:
+                return f"Unknown provider: {self.provider}"
+        except Exception as e:
+            return f"Error: {str(e)}"
+    
+    def _ollama_chat(self, prompt: str) -> str:
+        """Ollama API"""
+        url = f"{self.base_url}/api/chat"
+        
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": False
+        }
+        
+        response = requests.post(url, json=payload, timeout=60)
+        
+        if response.status_code == 200:
+            data = response.json()
+            return data.get('message', {}).get('content', '')
+        else:
+            return f"Ollama Error: {response.status_code}"
+    
+    def _openrouter_chat(self, prompt: str) -> str:
+        """OpenRouter API"""
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -24,25 +70,24 @@ class LLMProvider:
         }
         
         payload = {
-            "model": model,
-            "messages": [{"role": "user", "content": prompt}]
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.7,
+            "max_tokens": 50
         }
         
-        try:
-            response = requests.post(
-                f"{self.base_url}/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=30
-            )
-            
-            if response.status_code == 200:
-                data = response.json()
-                return data['choices'][0]['message']['content']
-            else:
-                return f"Error: {response.status_code}"
-        except Exception as e:
-            return f"Error: {str(e)}"
+        response = requests.post(
+            f"{self.base_url}/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            return data['choices'][0]['message']['content']
+        else:
+            return f"OpenRouter Error: {response.status_code}"
 
 
 # Game-specific prompts
@@ -110,17 +155,16 @@ What is your best move? Reply with your move."""
 class AIAgent:
     """AI Agent that uses LLM to play games"""
     
-    def __init__(self, name: str, api_key: str = None):
+    def __init__(self, name: str, provider: str = "ollama", api_key: str = None):
         self.name = name
-        self.llm = LLMProvider(api_key)
-        self.memory = []  # Store game experiences
+        self.llm = LLMProvider(provider, api_key)
+        self.memory = []
     
     def get_prompt(self, game_type: str, state: dict) -> str:
         """Build game-specific prompt"""
         
         prompt_template = GAME_PROMPTS.get(game_type, GAME_PROMPTS["default"])
         
-        # Format state for each game
         if game_type == "tictactoe":
             board = state.get("board", [None] * 9)
             board_display = ""
@@ -134,33 +178,22 @@ class AIAgent:
             player = state.get("current_player", "X")
             symbol = "X" if player == 1 else "O"
             
-            return prompt_template.format(
-                player=player,
-                symbol=symbol,
-                board=board_display
-            )
+            return prompt_template.format(player=player, symbol=symbol, board=board_display)
         
         elif game_type == "rps":
             return prompt_template.format(state=json.dumps(state))
         
         elif game_type == "connect4":
             board = state.get("board", [])
-            board_str = "\n".join([" ".join(row) for row in board])
+            board_str = "\n".join([" ".join(row) for row in board]) if board else "Empty board"
             
             player = state.get("current_player", 1)
             symbol = "X" if player == 1 else "O"
             
-            return prompt_template.format(
-                player=player,
-                symbol=symbol,
-                board=board_str
-            )
+            return prompt_template.format(player=player, symbol=symbol, board=board_str)
         
         else:
-            return prompt_template.format(
-                game_type=game_type,
-                state=json.dumps(state)
-            )
+            return prompt_template.format(game_type=game_type, state=json.dumps(state))
     
     def decide_move(self, game_type: str, state: dict) -> str:
         """Get LLM to decide move"""
@@ -169,7 +202,6 @@ class AIAgent:
         
         response = self.llm.chat(prompt)
         
-        # Store in memory
         self.memory.append({
             "game_type": game_type,
             "state": state,
@@ -179,14 +211,11 @@ class AIAgent:
         return response.strip()
     
     def learn_from_result(self, result: str):
-        """Update memory with game result"""
         if self.memory:
             self.memory[-1]["result"] = result
     
     def get_best_strategies(self) -> list:
-        """Get strategies that led to wins"""
         return [m for m in self.memory if m.get("result") == "win"]
 
 
-# Default agent (uses free OpenRouter)
-default_agent = AIAgent("AI Agent")
+default_agent = AIAgent("GameAgent")

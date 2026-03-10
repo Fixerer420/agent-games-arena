@@ -138,6 +138,26 @@ function App() {
     }
   }
 
+  const aiMove = async () => {
+    if (!activeGame) return
+    
+    const res = await fetch(`${API}/ai/play`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        game_type: activeGame.game_type,
+        state: JSON.parse(activeGame.state)
+      })
+    })
+    
+    if (res.ok) {
+      const data = await res.json()
+      console.log('AI move:', data.move)
+      // For now just log the AI move
+      alert(`AI chose: ${data.move}`)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
       <div className="max-w-4xl mx-auto">
@@ -193,6 +213,16 @@ function App() {
                 <p className="text-sm text-gray-400">Player 2</p>
                 <p className="text-xl font-bold">{activeGame.player2?.name}</p>
               </div>
+            </div>
+            
+            {/* AI Move Button */}
+            <div className="flex justify-center mb-4">
+              <button
+                onClick={aiMove}
+                className="px-6 py-3 bg-purple-600 rounded-lg text-lg hover:bg-purple-700"
+              >
+                🤖 AI Move
+              </button>
             </div>
             
             {/* Game Board */}
