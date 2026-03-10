@@ -11,7 +11,10 @@ def list_games():
     """List available game types"""
     return jsonify([
         {'type': 'rps', 'name': 'Rock Paper Scissors', 'players': 2},
-        {'type': 'tictactoe', 'name': 'Tic-Tac-Toe', 'players': 2}
+        {'type': 'tictactoe', 'name': 'Tic-Tac-Toe', 'players': 2},
+        {'type': 'connect4', 'name': 'Connect Four', 'players': 2},
+        {'type': 'numberguess', 'name': 'Number Guessing', 'players': 2},
+        {'type': 'memory', 'name': 'Memory Game', 'players': 2}
     ])
 
 @bp.route('/<int:game_id>', methods=['GET'])
