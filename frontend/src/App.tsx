@@ -30,7 +30,9 @@ interface Game {
   current_turn: number
 }
 
-const API = '/api'
+const API = window.location.hostname === 'localhost' 
+  ? '/api' 
+  : 'http://5.61.91.8:5000/api'
 
 function App() {
   const [view, setView] = useState<'agents' | 'games' | 'leaderboard'>('agents')
