@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify
 from app.models import Agent, Game
+from datetime import datetime
 
 bp = Blueprint('leaderboard', __name__, url_prefix='/api/leaderboard')
 
@@ -50,3 +51,19 @@ def get_game_leaderboard(game_type):
         {**item, 'rank': i + 1}
         for i, item in enumerate(leaderboard)
     ])
+
+
+@bp.route('/stats', methods=['GET'])
+def get_leaderboard_stats():
+    """Get arena statistics"""
+    from app.models import Agent, Game
+    
+    agents = Agent.query.order_by(Agent.elo.desc()).limit(10).all()
+    games_today = Game.query.filter(
+        Game.created_at >= datetime.utcnow().replace(hour=0, minute=0, second=0)
+    ).count()
+    
+    return jsonify({
+        'top_agents': [a.to_dict() for a in agents],
+        'games_today': games_today
+    })

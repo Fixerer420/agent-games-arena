@@ -15,7 +15,7 @@ class LLMProvider:
         
         if provider == "ollama":
             self.base_url = os.environ.get('OLLAMA_URL', 'http://localhost:11434')
-            self.model = os.environ.get('OLLAMA_MODEL', 'llama3.2:1b')
+            self.model = os.environ.get('OLLAMA_MODEL', 'qwen2:0.5b')
             self.api_key = ""
         elif provider == "openrouter":
             self.base_url = "https://openrouter.ai/api/v1"
@@ -52,13 +52,17 @@ class LLMProvider:
             "stream": False
         }
         
-        response = requests.post(url, json=payload, timeout=60)
-        
-        if response.status_code == 200:
-            data = response.json()
-            return data.get('message', {}).get('content', '')
-        else:
-            return f"Ollama Error: {response.status_code}"
+        try:
+            response = requests.post(url, json=payload, timeout=30)  # More time for Ollama
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('message', {}).get('content', '')
+            else:
+                return f"Ollama Error: {response.status_code}"
+        except requests.exceptions.Timeout:
+            return "Error: Ollama timeout - model may be loading"
+        except Exception as e:
+            return f"Error: {str(e)}"
     
     def _openrouter_chat(self, prompt: str) -> str:
         """OpenRouter API"""
@@ -73,31 +77,40 @@ class LLMProvider:
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.7,
-            "max_tokens": 50
+            "max_tokens": 10
         }
         
-        response = requests.post(
-            f"{self.base_url}/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=30
-        )
-        
-        if response.status_code == 200:
-            data = response.json()
-            return data['choices'][0]['message']['content']
-        else:
-            return f"OpenRouter Error: {response.status_code}"
+        try:
+            response = requests.post(
+                f"{self.base_url}/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=45
+            )
+            if response.status_code == 200:
+                data = response.json()
+                if data and data.get('choices'):
+                    content = data['choices'][0]['message'].get('content')
+                    if content:
+                        return content
+                    # Check for reasoning (some models use this instead)
+                    reasoning = data['choices'][0]['message'].get('reasoning')
+                    if reasoning:
+                        return reasoning[:50]  # Use first 50 chars of reasoning
+                return "Error: No content in response"
+            elif response.status_code == 429:
+                return "Error: OpenRouter rate limit - try again later"
+            else:
+                return f"OpenRouter Error: {response.status_code}"
+        except requests.exceptions.Timeout:
+            return "Error: OpenRouter timeout"
+        except Exception as e:
+            return f"Error: {str(e)}"
 
 
 # Game-specific prompts
 GAME_PROMPTS = {
-    "rps": """You are playing Rock Paper Scissors.
-Current game state: {state}
-
-Your options: rock, paper, scissors
-
-Reply with exactly ONE word: rock, paper, or scissors""",
+    "rps": """RPS game. Options: rock paper scissors. Reply with ONE word only.""",
     
     "tictactoe": """You are playing Tic-Tac-Toe.
 You are {player} (symbol: {symbol})
@@ -201,6 +214,13 @@ class AIAgent:
         prompt = self.get_prompt(game_type, state)
         
         response = self.llm.chat(prompt)
+        
+        # Handle error or None responses
+        if not response:
+            return f"Error: No response from LLM"
+        
+        if isinstance(response, str) and response.startswith("Error:"):
+            return response
         
         self.memory.append({
             "game_type": game_type,

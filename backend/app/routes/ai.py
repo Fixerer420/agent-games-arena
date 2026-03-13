@@ -81,8 +81,9 @@ def ai_make_move():
     if not game_type or not game_state:
         return jsonify({'error': 'game_type and state required'}), 400
     
-    # Create agent with optional API key
-    agent = AIAgent("TempAgent", api_key)
+    # Create agent with optional API key and provider
+    provider = data.get('provider', 'ollama')
+    agent = AIAgent("TempAgent", provider, api_key)
     
     try:
         move = agent.decide_move(game_type, game_state)

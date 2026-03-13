@@ -78,3 +78,53 @@ class Game(db.Model):
             'moves': self.moves,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
+
+
+class Room(db.Model):
+    """Game room/lobby for multiplayer"""
+    __tablename__ = 'rooms'
+    
+    id = db.Column(db.String(8), primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    room_code = db.Column(db.String(8), unique=True, nullable=False)
+    
+    # Players
+    player1_name = db.Column(db.String(100))
+    player2_name = db.Column(db.String(100))
+    bot_type = db.Column(db.String(20))  # rulebot, random, llm, etc.
+    
+    # Game
+    game_type = db.Column(db.String(20), default='rps')
+    player1_move = db.Column(db.String(20))
+    player2_move = db.Column(db.String(20))
+    round = db.Column(db.Integer, default=1)
+    result = db.Column(db.String(20))  # win, lose, draw
+    
+    # Status
+    status = db.Column(db.String(20), default='waiting')  # waiting, ready, playing, finished
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'room_code': self.room_code,
+            'player1': self.player1_name,
+            'player2': self.player2_name,
+            'game_type': self.game_type,
+            'status': self.status,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class RoomMessage(db.Model):
+    """Chat messages in rooms"""
+    __tablename__ = 'room_messages'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.String(8), db.ForeignKey('rooms.id'))
+    player_name = db.Column(db.String(100))
+    message = db.Column(db.Text)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)

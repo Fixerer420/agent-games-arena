@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Battle Arena</title>
+    <script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.10"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; }
+        .game-card { transition: transform 0.2s; }
+        .game-card:hover { transform: translateY(-5px); }
+    </style>
+</head>
+<body class="text-white p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-4xl font-bold text-center mb-2">⚔️ AI Battle Arena</h1>
+        <p class="text-center text-gray-400 mb-8">Watch AI agents battle in Rock Paper Scissors</p>
+        
+        <!-- Bot Selection -->
+        <div class="bg-gray-800 rounded-lg p-6 mb-6">
+            <h2 class="text-2xl font-bold mb-4">🤖 Select Bots</h2>
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm mb-2">Bot 1</label>
+                    <select id="bot1" class="w-full bg-gray-700 px-4 py-2 rounded">
+                        <option value="rulebot">RuleBot (beats random)</option>
+                        <option value="random">RandomBot</option>
+                        <option value="rock">RockBot (always rock)</option>
+                        <option value="paper">PaperBot (always paper)</option>
+                        <option value="scissors">ScissorsBot</option>
+                        <option value="cyclic">CyclicBot</option>
+                        <option value="counter">CounterBot</option>
+                        <option value="llm">🤖 LLM Agent</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm mb-2">Bot 2</label>
+                    <select id="bot2" class="w-full bg-gray-700 px-4 py-2 rounded">
+                        <option value="random">RandomBot</option>
+                        <option value="rulebot">RuleBot</option>
+                        <option value="rock">RockBot</option>
+                        <option value="paper">PaperBot</option>
+                        <option value="scissors">ScissorsBot</option>
+                        <option value="cyclic">CyclicBot</option>
+                        <option value="counter">CounterBot</option>
+                        <option value="llm">🤖 LLM Agent</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="flex gap-4">
+                <button onclick="runBattle(10)" class="px-6 py-2 bg-purple-600 hover:bg-purple-500 rounded font-bold">
+                    ⚔️ Battle (10 games)
+                </button>
+                <button onclick="runBattle(50)" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded font-bold">
+                    ⚔️ Battle (50 games)
+                </button>
+                <button onclick="watchLive()" class="px-6 py-2 bg-orange-600 hover:bg-orange-500 rounded font-bold">
+                    👁️ Watch Live
+                </button>
+            </div>
+        </div>
+        
+        <!-- Results -->
+        <div id="results" class="bg-gray-800 rounded-lg p-6 mb-6 hidden">
+            <h2 class="text-2xl font-bold mb-4">📊 Results</h2>
+            <div class="grid grid-cols-3 gap-4 mb-4">
+                <div class="bg-gray-700 p-4 rounded text-center">
+                    <p id="wins1" class="text-4xl font-bold text-green-400">0</p>
+                    <p class="text-gray-400">Bot 1 Wins</p>
+                </div>
+                <div class="bg-gray-700 p-4 rounded text-center">
+                    <p id="draws" class="text-4xl font-bold text-yellow-400">0</p>
+                    <p class="text-gray-400">Draws</p>
+                </div>
+                <div class="bg-gray-700 p-4 rounded text-center">
+                    <p id="wins2" class="text-4xl font-bold text-red-400">0</p>
+                    <p class="text-gray-400">Bot 2 Wins</p>
+                </div>
+            </div>
+            
+            <h3 class="font-bold mb-2">Battle Log:</h3>
+            <div id="log" class="bg-gray-900 p-4 rounded max-h-60 overflow-y-auto text-sm"></div>
+        </div>
+        
+        <!-- Live Battle -->
+        <div id="live" class="bg-gray-800 rounded-lg p-6 hidden">
+            <h2 class="text-2xl font-bold mb-4">👁️ Live Battle</h2>
+            <div class="flex justify-around text-center mb-6">
+                <div>
+                    <p class="text-6xl mb-2" id="move1-emoji">❓</p>
+                    <p class="font-bold" id="move1-name">Bot 1</p>
+                    <p class="text-sm text-gray-400" id="reason1"></p>
+                </div>
+                <div class="text-4xl self-center">VS</div>
+                <div>
+                    <p class="text-6xl mb-2" id="move2-emoji">❓</p>
+                    <p class="font-bold" id="move2-name">Bot 2</p>
+                    <p class="text-sm text-gray-400" id="reason2"></p>
+                </div>
+            </div>
+            <p id="winner" class="text-center text-2xl font-bold"></p>
+        </div>
+        
+        <!-- Leaderboard -->
+        <div class="bg-gray-800 rounded-lg p-6">
+            <h2 class="text-2xl font-bold mb-4">🏆 Bot Rankings</h2>
+            <div id="leaderboard" class="space-y-2"></div>
+        </div>
+    </div>
+    
+    <script>
+        const API = 'http://5.61.91.8:5000/api';
+        
+        // Load leaderboard
+        async function loadLeaderboard() {
+            try {
+                const res = await fetch(`${API}/leaderboard`);
+                const data = await res.json();
+                const lb = document.getElementById('leaderboard');
+                lb.innerHTML = data.slice(0, 10).map((bot, i) => `
+                    <div class="flex justify-between items-center bg-gray-700 p-3 rounded">
+                        <span class="text-lg">${i + 1}. ${bot.name}</span>
+                        <span class="text-green-400">${bot.wins}W</span>
+                        <span class="text-red-400">${bot.losses}L</span>
+                        <span class="text-yellow-400">${bot.draws}D</span>
+                    </div>
+                `).join('');
+            } catch(e) {
+                console.error(e);
+            }
+        }
+        loadLeaderboard();
+        
+        // Run battle
+        async function runBattle(numGames) {
+            const bot1 = document.getElementById('bot1').value;
+            const bot2 = document.getElementById('bot2').value;
+            
+            document.getElementById('results').classList.remove('hidden');
+            document.getElementById('live').classList.add('hidden');
+            document.getElementById('wins1').textContent = '...';
+            document.getElementById('wins2').textContent = '...';
+            document.getElementById('draws').textContent = '...';
+            document.getElementById('log').innerHTML = '<p class="text-gray-400">Fighting...</p>';
+            
+            try {
+                const res = await fetch(`${API}/ai-battle/battle`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        agent1: bot1,
+                        agent2: bot2,
+                        num_games: numGames,
+                        game_type: 'rps'
+                    })
+                });
+                
+                const data = await res.json();
+                
+                document.getElementById('wins1').textContent = data.wins.agent1;
+                document.getElementById('wins2').textContent = data.wins.agent2;
+                document.getElementById('draws').textContent = data.wins.draw;
+                
+                const log = document.getElementById('log');
+                log.innerHTML = data.results.slice(-20).map((r, i) => `
+                    <div class="flex justify-between py-1 border-b border-gray-700">
+                        <span>Game ${i+1}</span>
+                        <span class="${r.winner === 'agent1' ? 'text-green-400' : r.winner === 'agent2' ? 'text-red-400' : 'text-yellow-400'}">
+                            ${r.winner === 'agent1' ? 'Bot 1 Wins' : r.winner === 'agent2' ? 'Bot 2 Wins' : 'Draw'}
+                            (${r.move1} vs ${r.move2})
+                        </span>
+                    </div>
+                `).join('');
+                
+            } catch(e) {
+                document.getElementById('log').innerHTML = '<p class="text-red-400">Error: ' + e + '</p>';
+            }
+        }
+        
+        // Watch live
+        async function watchLive() {
+            const bot1 = document.getElementById('bot1').value;
+            const bot2 = document.getElementById('bot2').value;
+            
+            document.getElementById('results').classList.add('hidden');
+            document.getElementById('live').classList.remove('hidden');
+            document.getElementById('move1-emoji').textContent = '🤔';
+            document.getElementById('move2-emoji').textContent = '🤔';
+            document.getElementById('winner').textContent = 'Thinking...';
+            
+            try {
+                const res = await fetch(`${API}/ai-battle/battle-live`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        agent1: bot1,
+                        agent2: bot2,
+                        game_type: 'rps'
+                    })
+                });
+                
+                const data = await res.json();
+                
+                const emojis = { rock: '🪨', paper: '📄', scissors: '✂️' };
+                document.getElementById('move1-emoji').textContent = emojis[data.move1] || '❓';
+                document.getElementById('move2-emoji').textContent = emojis[data.move2] || '❓';
+                document.getElementById('reason1').textContent = data.reasoning1 || '';
+                document.getElementById('reason2').textContent = data.reasoning2 || '';
+                
+                const winnerText = data.winner === 'agent1' ? '🎉 Bot 1 Wins!' : 
+                                   data.winner === 'agent2' ? '🎉 Bot 2 Wins!' : '🤝 Draw!';
+                const winnerColor = data.winner === 'agent1' ? 'text-green-400' : 
+                                   data.winner === 'agent2' ? 'text-red-400' : 'text-yellow-400';
+                document.getElementById('winner').innerHTML = `<span class="${winnerColor}">${winnerText}</span>`;
+                
+            } catch(e) {
+                document.getElementById('winner').textContent = 'Error: ' + e;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,6 +1,8 @@
 # Game Engines
 # Each game implements: validate_move, get_winner, get_state
 
+import json
+
 class RockPaperScissors:
     """Rock Paper Scissors Game Engine"""
     

@@ -23,11 +23,19 @@ def create_app(config_name=None):
     db.init_app(app)
     
     # Register blueprints
-    from app.routes import agents, games, leaderboard, ai
+    from app.routes import agents, games, leaderboard, ai, rule, ai_game, ai_battle, rooms, external, challenges, replay, crypto
     app.register_blueprint(agents.bp)
     app.register_blueprint(games.bp)
     app.register_blueprint(leaderboard.bp)
     app.register_blueprint(ai.bp)
+    app.register_blueprint(rule.bp)
+    app.register_blueprint(ai_game.bp)
+    app.register_blueprint(ai_battle.bp)
+    app.register_blueprint(rooms.bp)
+    app.register_blueprint(external.bp)
+    app.register_blueprint(challenges.bp)
+    app.register_blueprint(replay.bp)
+    app.register_blueprint(crypto.bp)
     
     # Health check endpoint
     @app.route('/health')

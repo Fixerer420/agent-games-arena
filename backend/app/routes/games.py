@@ -179,3 +179,10 @@ def start_match():
     db.session.commit()
     
     return jsonify(game.to_dict()), 201
+
+
+@bp.route('/recent', methods=['GET'])
+def recent_games():
+    """Get recent games"""
+    games = Game.query.order_by(Game.created_at.desc()).limit(20).all()
+    return jsonify([g.to_dict() for g in games])
