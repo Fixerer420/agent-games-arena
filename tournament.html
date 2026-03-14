@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tournament Bracket</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; }
+        .bracket { font-family: monospace; }
+        .match { fill: #2d3748; }
+        .match:hover { fill: #4a5568; }
+        .line { stroke: #4a5568; stroke-width: 2; fill: none; }
+        text { fill: white; font-size: 12px; }
+    </style>
+</head>
+<body class="text-white p-8">
+    <div class="max-w-7xl mx-auto">
+        <h1 class="text-4xl font-bold text-center mb-4">🏆 Tournament Bracket</h1>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <div class="bg-gray-800 rounded-lg p-4">
+                <h3 class="text-xl font-bold mb-2">Select Bots</h3>
+                <div id="botSelect" class="space-y-1 max-h-48 overflow-y-auto"></div>
+            </div>
+            
+            <div class="bg-gray-800 rounded-lg p-4">
+                <h3 class="text-xl font-bold mb-2">Settings</h3>
+                <label class="block mb-2">Games per match:
+                    <select id="gamesPerMatch" class="bg-gray-700 px-2 py-1 rounded ml-2">
+                        <option value="3">3</option>
+                        <option value="5" selected>5</option>
+                        <option value="10">10</option>
+                    </select>
+                </label>
+                <button onclick="startTournament()" class="w-full bg-green-600 py-2 rounded font-bold mt-2">
+                    Start Tournament
+                </button>
+            </div>
+            
+            <div class="bg-gray-800 rounded-lg p-4">
+                <h3 class="text-xl font-bold mb-2">Champion</h3>
+                <div id="champion" class="text-3xl text-center text-yellow-400 mt-4">
+                    ?
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-gray-800 rounded-lg p-4 mb-6">
+            <h3 class="text-xl font-bold mb-2">Bracket</h3>
+            <div id="bracket" class="overflow-x-auto"></div>
+        </div>
+        
+        <div class="bg-gray-800 rounded-lg p-4">
+            <h3 class="text-xl font-bold mb-2">Results</h3>
+            <div id="results" class="text-sm"></div>
+        </div>
+    </div>
+    
+    <script>
+        const API = 'http://5.61.91.8:5000/api';
+        
+        const allBots = [
+            'smart', 'cyclic', 'counter', 'mirror', 'defensive', 
+            'aggressive', 'gambler', 'random', 'rock', 'paper', 'scissors'
+        ];
+        
+        // Bot display names
+        const botNames = {
+            'smart': 'SmartBot',
+            'cyclic': 'CyclicBot', 
+            'counter': 'CounterBot',
+            'mirror': 'MirrorBot',
+            'defensive': 'DefensiveBot',
+            'aggressive': 'AggressiveBot',
+            'gambler': 'GamblerBot',
+            'random': 'RandomBot',
+            'rock': 'RockBot',
+            'paper': 'PaperBot',
+            'scissors': 'ScissorsBot'
+        };
+        
+        // Bot colors
+        const botColors = {
+            'smart': '#9b59b6',
+            'cyclic': '#3498db',
+            'counter': '#e74c3c',
+            'mirror': '#f39c12',
+            'defensive': '#2ecc71',
+            'aggressive': '#e67e22',
+            'gambler': '#1abc9c',
+            'random': '#95a5a6',
+            'rock': '#34495e',
+            'paper': '#ecf0f1',
+            'scissors': '#e74c3c'
+        };
+        
+        // Render bot selection
+        const botSelect = document.getElementById('botSelect');
+        allBots.forEach(bot => {
+            const div = document.createElement('div');
+            div.className = 'flex items-center gap-2';
+            div.innerHTML = `
+                <input type="checkbox" id="bot_${bot}" value="${bot}" ${['smart','random','cyclic','counter'].includes(bot) ? 'checked' : ''}>
+                <label for="bot_${bot}" style="color:${botColors[bot]}">${botNames[bot]}</label>
+            `;
+            botSelect.appendChild(div);
+        });
+        
+        async function startTournament() {
+            // Get selected bots
+            const selected = allBots.filter(bot => document.getElementById(`bot_${bot}`).checked);
+            
+            if (selected.length < 2) {
+                alert('Select at least 2 bots!');
+                return;
+            }
+            
+            const games = document.getElementById('gamesPerMatch').value;
+            
+            document.getElementById('results').innerHTML = '<p class="text-yellow-400">Tournament in progress...</p>';
+            
+            try {
+                const res = await fetch(`${API}/ai-battle/tournament`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bots: selected, games_per_match: parseInt(games) })
+                });
+                
+                const data = await res.json();
+                
+                // Show champion
+                document.getElementById('champion').innerHTML = `👑 ${botNames[data.champion] || data.champion}`;
+                
+                // Draw bracket with D3
+                drawBracket(data.rounds);
+                
+                // Show results
+                let html = '<table class="w-full">';
+                data.rounds.forEach((round, i) => {
+                    html += `<tr><td colspan="3" class="font-bold text-purple-400 py-2">Round ${i+1}</td></tr>`;
+                    round.matches.forEach(m => {
+                        const w = m.winner === m.bot1 ? 'text-green-400' : 'text-red-400';
+                        html += `<tr>
+                            <td class="${m.winner === m.bot1 ? w : ''}">${botNames[m.bot1]}</td>
+                            <td class="text-center">${m.score}</td>
+                            <td class="${m.winner === m.bot2 ? w : ''}">${botNames[m.bot2]}</td>
+                        </tr>`;
+                    });
+                });
+                html += '</table>';
+                document.getElementById('results').innerHTML = html;
+                
+            } catch(e) {
+                document.getElementById('results').innerHTML = `<p class="text-red-400">Error: ${e}</p>`;
+            }
+        }
+        
+        function drawBracket(rounds) {
+            const container = document.getElementById('bracket');
+            container.innerHTML = '';
+            
+            const width = rounds.length * 180 + 100;
+            const height = Math.pow(2, rounds.length) * 50 + 50;
+            
+            const svg = d3.select('#bracket')
+                .append('svg')
+                .attr('width', width)
+                .attr('height', height);
+            
+            rounds.forEach((round, roundIdx) => {
+                const matchHeight = height / round.matches.length;
+                
+                round.matches.forEach((match, matchIdx) => {
+                    const y = matchIdx * matchHeight + matchHeight / 2;
+                    const x = roundIdx * 150 + 50;
+                    
+                    // Bot 1 box
+                    svg.append('rect')
+                        .attr('x', x)
+                        .attr('y', y - 15)
+                        .attr('width', 80)
+                        .attr('height', 30)
+                        .attr('fill', match.winner === match.bot1 ? botColors[match.bot1] : '#4a5568')
+                        .attr('rx', 4);
+                    
+                    svg.append('text')
+                        .attr('x', x + 40)
+                        .attr('y', y + 4)
+                        .attr('text-anchor', 'middle')
+                        .text(botNames[match.bot1] || match.bot1);
+                    
+                    // Bot 2 box
+                    svg.append('rect')
+                        .attr('x', x)
+                        .attr('y', y + 15)
+                        .attr('width', 80)
+                        .attr('height', 30)
+                        .attr('fill', match.winner === match.bot2 ? botColors[match.bot2] : '#4a5568')
+                        .attr('rx', 4);
+                    
+                    svg.append('text')
+                        .attr('x', x + 40)
+                        .attr('y', y + 34)
+                        .attr('text-anchor', 'middle')
+                        .text(botNames[match.bot2] || match.bot2);
+                    
+                    // Connector lines
+                    if (roundIdx < rounds.length - 1) {
+                        const nextRound = rounds[roundIdx + 1];
+                        const nextMatchIdx = Math.floor(matchIdx / 2);
+                        const nextY = nextRound.matches.length > 0 ? 
+                            nextMatchIdx * (height / nextRound.matches.length) + height / nextRound.matches.length / 2 : 
+                            height / 2;
+                        
+                        svg.append('path')
+                            .attr('d', `M ${x+80} ${y} C ${x+100} ${y}, ${x+100} ${nextY}, ${x+120} ${nextY}`)
+                            .attr('class', 'line');
+                    }
+                });
+            });
+        }
+    </script>
+</body>
+</html>

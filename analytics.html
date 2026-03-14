@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Battle Analytics</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; }
+        .bar { transition: height 0.3s, y 0.3s; }
+        .bar:hover { opacity: 0.8; }
+    </style>
+</head>
+<body class="text-white p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-4xl font-bold text-center mb-6">📊 Battle Analytics</h1>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Win Rate Chart -->
+            <div class="bg-gray-800 rounded-lg p-4">
+                <h2 class="text-xl font-bold mb-4">Win Rates</h2>
+                <div id="winChart"></div>
+            </div>
+            
+            <!-- Move Distribution -->
+            <div class="bg-gray-800 rounded-lg p-4">
+                <h2 class="text-xl font-bold mb-4">Move Distribution</h2>
+                <div id="moveChart"></div>
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Battle History Timeline -->
+            <div class="bg-gray-800 rounded-lg p-4">
+                <h2 class="text-xl font-bold mb-4">Battle History</h2>
+                <div id="timeline"></div>
+            </div>
+            
+            <!-- Head to Head -->
+            <div class="bg-gray-800 rounded-lg p-4">
+                <h2 class="text-xl font-bold mb-4">Head to Head</h2>
+                <select id="bot1" class="bg-gray-700 px-2 py-1 rounded mr-2"></select>
+                <select id="bot2" class="bg-gray-700 px-2 py-1 rounded"></select>
+                <button onclick="battleHead2Head()" class="bg-blue-600 px-3 py-1 rounded ml-2">Fight</button>
+                <div id="h2h"></div>
+            </div>
+        </div>
+        
+        <!-- Bot Comparison Table -->
+        <div class="bg-gray-800 rounded-lg p-4">
+            <h2 class="text-xl font-bold mb-4">Bot Performance Comparison</h2>
+            <div id="comparisonTable"></div>
+        </div>
+    </div>
+    
+    <script>
+        const API = 'http://5.61.91.8:5000/api';
+        
+        const bots = ['smart', 'cyclic', 'counter', 'mirror', 'defensive', 'aggressive', 'gambler', 'random'];
+        const colors = {'smart': '#9b59b6', 'cyclic': '#3498db', 'counter': '#e74c3c', 'mirror': '#f39c12', 
+                       'defensive': '#2ecc71', 'aggressive': '#e67e22', 'gambler': '#1abc9c', 'random': '#95a5a6'};
+        
+        // Generate sample data
+        const battleData = [];
+        bots.forEach(b1 => {
+            bots.forEach(b2 => {
+                if (b1 !== b2) {
+                    const wins1 = Math.floor(Math.random() * 70 + 10);
+                    const wins2 = Math.floor(Math.random() * 50);
+                    const draws = 100 - wins1 - wins2;
+                    battleData.push({ bot1: b1, bot2: b2, wins1, wins2, draws });
+                }
+            });
+        });
+        
+        // Win Rate Chart
+        const winRates = bots.map(b => {
+            const total = battleData.filter(d => d.bot1 === b || d.bot2 === b);
+            const wins = battleData.filter(d => d.bot1 === b).reduce((s, d) => s + d.wins1, 0) +
+                        battleData.filter(d => d.bot2 === b).reduce((s, d) => s + d.wins2, 0);
+            return { bot: b, rate: wins / 100 };
+        });
+        
+        const svg = d3.select('#winChart').append('svg').attr('width', 400).attr('height', 200);
+        svg.selectAll('rect')
+            .data(winRates)
+            .enter()
+            .append('rect')
+            .attr('class', 'bar')
+            .attr('x', (d, i) => i * 48 + 10)
+            .attr('y', d => 180 - d.rate * 1.5)
+            .attr('width', 40)
+            .attr('height', d => d.rate * 1.5)
+            .attr('fill', d => colors[d.bot]);
+        
+        // Move Distribution
+        const moves = ['rock', 'paper', 'scissors'];
+        const moveData = [
+            { move: '🪨 Rock', count: Math.floor(Math.random() * 30 + 30) },
+            { move: '📄 Paper', count: Math.floor(Math.random() * 30 + 30) },
+            { move: '✂️ Scissors', count: Math.floor(Math.random() * 30 + 30) }
+        ];
+        
+        const moveSvg = d3.select('#moveChart').append('svg').attr('width', 400).attr('height', 200);
+        const pie = d3.pie().value(d => d.count);
+        const arc = d3.arc().innerRadius(0).outerRadius(80);
+        
+        moveSvg.selectAll('path')
+            .data(pie(moveData))
+            .enter()
+            .append('path')
+            .attr('d', arc)
+            .attr('fill', (d, i) => ['#3498db', '#e74c3c', '#2ecc71'][i])
+            .attr('transform', 'translate(100,100)');
+        
+        // Timeline
+        const timeline = document.getElementById('timeline');
+        let html = '<div class="space-y-2 max-h-48 overflow-y-auto">';
+        for (let i = 0; i < 20; i++) {
+            const b1 = bots[Math.floor(Math.random() * bots.length)];
+            const b2 = bots[Math.floor(Math.random() * bots.length)];
+            const winner = Math.random() > 0.5 ? b1 : b2;
+            html += `<div class="flex justify-between bg-gray-700 p-2 rounded text-sm">
+                <span>${b1}</span>
+                <span class="text-yellow-400">vs</span>
+                <span>${b2}</span>
+                <span class="text-green-400">Winner: ${winner}</span>
+            </div>`;
+        }
+        html += '</div>';
+        timeline.innerHTML = html;
+        
+        // Bot Select
+        const s1 = document.getElementById('bot1');
+        const s2 = document.getElementById('bot2');
+        bots.forEach(b => {
+            s1.add(new Option(b, b));
+            s2.add(new Option(b, b));
+        });
+        
+        function battleHead2Head() {
+            const b1 = s1.value;
+            const b2 = s2.value;
+            
+            // Simulate battle
+            const wins1 = Math.floor(Math.random() * 80);
+            const wins2 = Math.floor(Math.random() * 80);
+            const draws = 100 - wins1 - wins2;
+            
+            document.getElementById('h2h').innerHTML = `
+                <div class="grid grid-cols-3 gap-4 mt-4">
+                    <div class="text-center bg-gray-700 p-4 rounded">
+                        <p class="text-3xl font-bold text-green-400">${wins1}</p>
+                        <p>${b1} wins</p>
+                    </div>
+                    <div class="text-center bg-gray-700 p-4 rounded">
+                        <p class="text-3xl font-bold text-yellow-400">${draws}</p>
+                        <p>Draws</p>
+                    </div>
+                    <div class="text-center bg-gray-700 p-4 rounded">
+                        <p class="text-3xl font-bold text-red-400">${wins2}</p>
+                        <p>${b2} wins</p>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Comparison Table
+        const table = document.getElementById('comparisonTable');
+        table.innerHTML = `
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left border-b border-gray-700">
+                        <th class="p-2">Bot</th>
+                        <th class="p-2">Win Rate</th>
+                        <th class="p-2">Best Against</th>
+                        <th class="p-2">Worst Against</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${winRates.map(w => `
+                        <tr class="border-b border-gray-700">
+                            <td class="p-2" style="color:${colors[w.bot]}">${w.bot}</td>
+                            <td class="p-2">${Math.round(w.rate)}%</td>
+                            <td class="p-2">${bots[Math.floor(Math.random() * bots.length)]}</td>
+                            <td class="p-2">${bots[Math.floor(Math.random() * bots.length)]}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+    </script>
+</body>
+</html>
