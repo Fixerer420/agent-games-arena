@@ -1127,3 +1127,90 @@ GAMES = {
 
 def get_game(game_type):
     return GAMES.get(game_type)
+
+
+# Simple Dice High/Low Game
+class DiceHighLow:
+    """Simple dice guessing game"""
+    
+    NAME = "Dice High/Low"
+    PLAYERS = 2
+    
+    @staticmethod
+    def get_initial_state():
+        return {
+            'player_cards': [],      # Player's dice rolls
+            'ai_cards': [],          # AI's dice rolls
+            'player_total': 0,
+            'ai_total': 0,
+            'current_roll': None,    # Current dice value
+            'player_guess': None,    # 'higher' or 'lower'
+            'round': 1,
+            'max_rounds': 5,
+            'game_over': False,
+            'winner': None,
+            'message': "Guess if AI's roll will be higher or lower than yours!"
+        }
+    
+    @staticmethod
+    def validate_move(state, move):
+        if state['game_over']:
+            return False
+        if move not in ['higher', 'lower', 'roll']:
+            return False
+        return True
+    
+    @staticmethod
+    def make_move(state, player, move):
+        import random
+        
+        if move == 'roll':
+            # Player rolls
+            player_roll = random.randint(1, 6)
+            state['player_cards'].append(player_roll)
+            state['player_total'] += player_roll
+            state['current_roll'] = player_roll
+            state['message'] = f"You rolled {player_roll}! Now guess higher or lower for AI."
+            return state, None
+        
+        if move in ['higher', 'lower']:
+            state['player_guess'] = move
+            
+            # AI rolls
+            ai_roll = random.randint(1, 6)
+            state['ai_cards'].append(ai_roll)
+            state['ai_total'] += ai_roll
+            
+            # Determine winner of round
+            if move == 'higher' and ai_roll > state['current_roll']:
+                state['message'] = f"AI rolled {ai_roll}, you were right! +1 point"
+                state['player_score'] = state.get('player_score', 0) + 1
+            elif move == 'lower' and ai_roll < state['current_roll']:
+                state['message'] = f"AI rolled {ai_roll}, you were right! +1 point"
+                state['player_score'] = state.get('player_score', 0) + 1
+            else:
+                state['message'] = f"AI rolled {ai_roll}, wrong! +1 to AI"
+                state['ai_score'] = state.get('ai_score', 0) + 1
+            
+            state['round'] += 1
+            
+            # Check game over
+            if state['round'] > state['max_rounds']:
+                state['game_over'] = True
+                if state.get('player_score', 0) > state.get('ai_score', 0):
+                    state['winner'] = 1
+                    state['message'] = f"Game Over! You win {state['player_score']}-{state['ai_score']}"
+                elif state.get('ai_score', 0) > state.get('player_score', 0):
+                    state['winner'] = 2
+                    state['message'] = f"Game Over! AI wins {state['ai_score']}-{state['player_score']}"
+                else:
+                    state['winner'] = 0
+                    state['message'] = f"Game Over! It's a tie {state['player_score']}-{state['ai_score']}"
+            else:
+                state['message'] += f" Round {state['round']}/{state['max_rounds']}"
+        
+        return state, None
+
+
+# Add to GAMES registry
+GAMES['dice'] = DiceHighLow

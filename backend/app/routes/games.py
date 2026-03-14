@@ -20,7 +20,8 @@ def list_games():
         {'type': 'checkers', 'name': 'Checkers', 'players': 2},
         {'type': 'chess', 'name': 'Chess (5x5)', 'players': 2},
         {'type': 'snake', 'name': 'Snake', 'players': 1},
-        {'type': 'pong', 'name': 'Pong', 'players': 2}
+        {'type': 'pong', 'name': 'Pong', 'players': 2},
+        {'type': 'dice', 'name': 'Dice High/Low', 'players': 2}
     ])
 
 @bp.route('/<int:game_id>', methods=['GET'])
