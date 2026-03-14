@@ -227,8 +227,13 @@ def play_rps_llm_live(Bot1, Bot2, use_llm1, use_llm2, provider):
             move1 = random.choice(['rock', 'paper', 'scissors'])
             reasoning1 = f"🤖 Error: {str(e)[:30]}..."
     else:
-        move1 = Bot1.get_move('rps', state1) if Bot1 else random.choice(['rock','paper','scissors'])
-        reasoning1 = f"{Bot1.name} plays {move1}"
+        # Bot1 is passed in as parameter, use it directly
+        if Bot1:
+            move1 = Bot1.get_move('rps', state1)
+            reasoning1 = f"{Bot1.name} plays {move1}"
+        else:
+            move1 = random.choice(['rock','paper','scissors'])
+            reasoning1 = f"Unknown bot plays {move1}"
     
     # Small delay between moves
     time.sleep(0.5 if (use_llm1 or use_llm2) else 0.1)
@@ -247,8 +252,13 @@ def play_rps_llm_live(Bot1, Bot2, use_llm1, use_llm2, provider):
             move2 = random.choice(['rock', 'paper', 'scissors'])
             reasoning2 = f"🤖 Error: {str(e)[:30]}..."
     else:
-        move2 = Bot2.get_move('rps', state2) if Bot2 else random.choice(['rock','paper','scissors'])
-        reasoning2 = f"{Bot2.name} plays {move2}"
+        # Bot2 is passed in as parameter, use it directly
+        if Bot2:
+            move2 = Bot2.get_move('rps', state2)
+            reasoning2 = f"{Bot2.name} plays {move2}"
+        else:
+            move2 = random.choice(['rock','paper','scissors'])
+            reasoning2 = f"Unknown bot plays {move2}"
     
     # Determine winner
     winners = {'rock': 'scissors', 'paper': 'rock', 'scissors': 'paper'}
