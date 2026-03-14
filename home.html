@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Arena - Live!</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; }
+        .pulse { animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body class="text-white p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-4xl font-bold text-center mb-2">🎮 AI Arena</h1>
+        
+        <div class="grid grid-cols-3 gap-4 mb-6">
+            <a href="/index.html" class="block bg-gray-700 p-4 rounded text-center hover:bg-gray-600">
+                ⚔️ <strong>Battle</strong><br><span class="text-sm text-gray-400">Fight bots</span>
+            </a>
+            <a href="/tournament.html" class="block bg-gray-700 p-4 rounded text-center hover:bg-gray-600">
+                🏆 <strong>Tournament</strong><br><span class="text-sm text-gray-400">Bracket</span>
+            </a>
+            <a href="/analytics.html" class="block bg-gray-700 p-4 rounded text-center hover:bg-gray-600">
+                📊 <strong>Analytics</strong><br><span class="text-sm text-gray-400">Stats</span>
+            </a>
+        </div>
+        
+        <div class="bg-gray-800 rounded-lg p-6">
+            <h2 class="text-2xl font-bold mb-4">Live Battles</h2>
+            
+            <div class="flex gap-4 mb-4">
+                <select id="bot1" class="bg-gray-700 px-4 py-2 rounded flex-1">
+                    <option value="smart">SmartBot</option>
+                    <option value="cyclic">CyclicBot</option>
+                    <option value="counter">CounterBot</option>
+                    <option value="mirror">MirrorBot</option>
+                    <option value="random">RandomBot</option>
+                </select>
+                <span class="self-center text-2xl">vs</span>
+                <select id="bot2" class="bg-gray-700 px-4 py-2 rounded flex-1">
+                    <option value="random">RandomBot</option>
+                    <option value="smart">SmartBot</option>
+                    <option value="cyclic">CyclicBot</option>
+                    <option value="counter">CounterBot</option>
+                </select>
+            </div>
+            
+            <button onclick="startLive()" class="w-full bg-green-600 py-3 rounded font-bold text-lg mb-6">
+                🎮 Start Battle
+            </button>
+            
+            <div id="battle" class="hidden">
+                <div class="flex justify-around text-center mb-6">
+                    <div>
+                        <p id="bot1Name" class="text-2xl font-bold text-green-400">-</p>
+                        <p class="text-6xl" id="move1">❓</p>
+                    </div>
+                    <div class="text-4xl self-center">VS</div>
+                    <div>
+                        <p id="bot2Name" class="text-2xl font-bold text-red-400">-</p>
+                        <p class="text-6xl" id="move2">❓</p>
+                    </div>
+                </div>
+                
+                <p id="result" class="text-center text-3xl font-bold mb-4"></p>
+                
+                <div class="bg-gray-900 p-4 rounded max-h-48 overflow-y-auto" id="log"></div>
+            </div>
+        </div>
+        
+        <div class="mt-6 bg-gray-800 rounded-lg p-6">
+            <h2 class="text-2xl font-bold mb-4">Quick Stats</h2>
+            <div class="grid grid-cols-3 gap-4 text-center">
+                <div class="bg-gray-700 p-4 rounded">
+                    <p class="text-3xl font-bold text-purple-400" id="totalBattles">0</p>
+                    <p class="text-gray-400">Battles</p>
+                </div>
+                <div class="bg-gray-700 p-4 rounded">
+                    <p class="text-3xl font-bold text-yellow-400" id="totalBots">11</p>
+                    <p class="text-gray-400">Bots</p>
+                </div>
+                <div class="bg-gray-700 p-4 rounded">
+                    <p class="text-3xl font-bold text-blue-400" id="topBot">-</p>
+                    <p class="text-gray-400">Top Bot</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API = 'http://5.61.91.8:5000/api';
+        
+        const botNames = {
+            'smart': 'SmartBot', 'cyclic': 'CyclicBot', 'counter': 'CounterBot',
+            'mirror': 'MirrorBot', 'defensive': 'DefensiveBot', 'aggressive': 'AggressiveBot',
+            'gambler': 'GamblerBot', 'random': 'RandomBot', 'rock': 'RockBot',
+            'paper': 'PaperBot', 'scissors': 'ScissorsBot'
+        };
+        
+        const emojis = { 'rock': '🪨', 'paper': '📄', 'scissors': '✂️' };
+        
+        let battleInterval;
+        
+        async function startLive() {
+            const bot1 = document.getElementById('bot1').value;
+            const bot2 = document.getElementById('bot2').value;
+            
+            document.getElementById('battle').classList.remove('hidden');
+            document.getElementById('bot1Name').textContent = botNames[bot1];
+            document.getElementById('bot2Name').textContent = botNames[bot2];
+            document.getElementById('log').innerHTML = '';
+            
+            let wins = { bot1: 0, bot2: 0, draw: 0 };
+            let round = 0;
+            
+            battleInterval = setInterval(async () => {
+                try {
+                    const res = await fetch(`${API}/ai-battle/battle-live`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ agent1: bot1, agent2: bot2, game_type: 'rps' })
+                    });
+                    
+                    const data = await res.json();
+                    
+                    document.getElementById('move1').textContent = emojis[data.move1] || '❓';
+                    document.getElementById('move2').textContent = emojis[data.move2] || '❓';
+                    
+                    if (data.winner === 'agent1') {
+                        wins.bot1++;
+                        document.getElementById('result').textContent = '🎉 Bot 1 Wins!';
+                    } else if (data.winner === 'agent2') {
+                        wins.bot2++;
+                        document.getElementById('result').textContent = '🎉 Bot 2 Wins!';
+                    } else {
+                        wins.draw++;
+                        document.getElementById('result').textContent = '🤝 Draw!';
+                    }
+                    
+                    round++;
+                    
+                    const log = document.getElementById('log');
+                    log.innerHTML = `<div class="flex justify-between py-1 border-b border-gray-700">
+                        <span>Round ${round}</span>
+                        <span>${data.move1} vs ${data.move2}</span>
+                        <span class="${data.winner === 'agent1' ? 'text-green-400' : data.winner === 'agent2' ? 'text-red-400' : 'text-yellow-400'}">
+                            ${data.winner === 'agent1' ? 'Bot 1' : data.winner === 'agent2' ? 'Bot 2' : 'Draw'}
+                        </span>
+                    </div>` + log.innerHTML;
+                    
+                    document.getElementById('totalBattles').textContent = 
+                        parseInt(document.getElementById('totalBattles').textContent) + 1;
+                    
+                } catch(e) {
+                    console.error(e);
+                }
+            }, 2000);
+        }
+        
+        // Load leaderboard
+        fetch(`${API}/leaderboard`).then(r => r.json()).then(data => {
+            if (data.length > 0) {
+                document.getElementById('topBot').textContent = data[0].name;
+            }
+        });
+    </script>
+</body>
+</html>
