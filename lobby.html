@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>LLM Arena - Lobby</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%); min-height: 100vh; }
+        .glow { box-shadow: 0 0 30px rgba(139, 92, 246, 0.4); }
+    </style>
+</head>
+<body class="text-white p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-5xl font-bold text-center mb-2">🎮 LLM Battle Arena</h1>
+        <p class="text-center text-purple-300 mb-8">Join lobby, find opponent, battle!</p>
+        
+        <!-- Join Section -->
+        <div class="bg-gray-800 rounded-xl p-6 mb-6 glow">
+            <h2 class="text-2xl font-bold mb-4">🚀 Join Lobby</h2>
+            
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm mb-2">Your Name</label>
+                    <input id="playerName" type="text" placeholder="Enter your name" 
+                           class="w-full bg-gray-700 px-4 py-2 rounded">
+                </div>
+                <div>
+                    <label class="block text-sm mb-2">Your LLM</label>
+                    <select id="llmChoice" class="w-full bg-gray-700 px-4 py-2 rounded">
+                        <option value="llama3.2">Llama 3.2</option>
+                        <option value="gemma:2b">Gemma 2B</option>
+                        <option value="phi">Phi</option>
+                    </select>
+                </div>
+            </div>
+            
+            <button onclick="joinLobby()" id="joinBtn" class="w-full bg-purple-600 py-3 rounded-lg font-bold text-lg">
+                Find Match
+            </button>
+            
+            <p id="status" class="text-center mt-4 text-gray-400"></p>
+        </div>
+        
+        <!-- Waiting / Matched -->
+        <div id="matchSection" class="hidden">
+            <!-- Waiting -->
+            <div id="waitingView" class="hidden bg-gray-800 rounded-xl p-6 text-center">
+                <p class="text-4xl mb-4">⏳</p>
+                <h3 class="text-2xl font-bold mb-2">Waiting for opponent...</h3>
+                <p id="queuePos" class="text-gray-400"></p>
+                <button onclick="leaveLobby()" class="mt-4 bg-red-600 px-4 py-2 rounded">Leave</button>
+            </div>
+            
+            <!-- Matched -->
+            <div id="matchedView" class="hidden bg-gray-800 rounded-xl p-6">
+                <h3 class="text-2xl font-bold mb-4 text-center">🎉 Match Found!</h3>
+                
+                <div class="flex justify-around mb-6">
+                    <div class="text-center">
+                        <p class="text-4xl">👤</p>
+                        <p id="myName" class="font-bold">You</p>
+                        <p id="myLLM" class="text-purple-400 text-sm"></p>
+                    </div>
+                    <div class="text-2xl self-center">VS</div>
+                    <div class="text-center">
+                        <p class="text-4xl">🤖</p>
+                        <p id="oppName" class="font-bold">Opponent</p>
+                        <p id="oppLLM" class="text-pink-400 text-sm"></p>
+                    </div>
+                </div>
+                
+                <!-- Choose Game -->
+                <div id="chooseGame" class="text-center">
+                    <h4 class="text-xl mb-4">Choose Your Game:</h4>
+                    <div class="grid grid-cols-3 gap-3 mb-4">
+                        <button onclick="chooseGame('rps')" class="bg-green-600 py-3 rounded font-bold hover:bg-green-500">
+                            🪨📄✂️ RPS
+                        </button>
+                        <button onclick="chooseGame('tictactoe')" class="bg-blue-600 py-3 rounded font-bold hover:bg-blue-500">
+                            ⭕❌ Tic-Tac-Toe
+                        </button>
+                        <button onclick="chooseGame('guess')" class="bg-yellow-600 py-3 rounded font-bold hover:bg-yellow-500">
+                            🎯 Number Guess
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Game Playing -->
+                <div id="playingGame" class="hidden text-center">
+                    <h4 id="gameTitle" class="text-xl mb-4">Game in Progress</h4>
+                    <div id="gameContent"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tournament -->
+        <div class="bg-gray-800 rounded-xl p-6 mt-6">
+            <h2 class="text-2xl font-bold mb-4">🏆 Tournament</h2>
+            <p class="text-gray-400 mb-4">Create or join a tournament!</p>
+            <div class="flex gap-3">
+                <button onclick="createTournament()" class="flex-1 bg-yellow-600 py-3 rounded font-bold">
+                    Create Tournament
+                </button>
+                <button onclick="joinTournament()" class="flex-1 bg-orange-600 py-3 rounded font-bold">
+                    Join Tournament
+                </button>
+            </div>
+            <div id="tournamentView" class="hidden mt-4"></div>
+        </div>
+    </div>
+    
+    <script>
+        const API = 'http://5.61.91.8:5000/api';
+        let playerId = null;
+        let gameId = null;
+        let pollInterval = null;
+        
+        // Join lobby
+        async function joinLobby() {
+            const name = document.getElementById('playerName').value || 'Player';
+            const llm = document.getElementById('llmChoice').value;
+            
+            document.getElementById('joinBtn').disabled = true;
+            document.getElementById('status').textContent = 'Finding match...';
+            
+            try {
+                const res = await fetch(`${API}/lobby/join`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, llm })
+                });
+                
+                const data = await res.json();
+                
+                document.getElementById('matchSection').classList.remove('hidden');
+                
+                if (data.status === 'matched') {
+                    // Match found!
+                    gameId = data.game_id;
+                    playerId = data.player_id;
+                    
+                    document.getElementById('myName').textContent = name;
+                    document.getElementById('myLLM').textContent = llm;
+                    document.getElementById('oppName').textContent = data.opponent.name;
+                    document.getElementById('oppLLM').textContent = data.opponent.llm;
+                    
+                    document.getElementById('waitingView').classList.add('hidden');
+                    document.getElementById('matchedView').classList.remove('hidden');
+                    
+                } else {
+                    // Waiting
+                    document.getElementById('waitingView').classList.remove('hidden');
+                    document.getElementById('matchedView').classList.add('hidden');
+                    document.getElementById('queuePos').textContent = `Position in queue: ${data.position}`;
+                    
+                    // Poll for match
+                    pollInterval = setInterval(checkMatch, 3000);
+                }
+                
+            } catch(e) {
+                document.getElementById('status').textContent = 'Error: ' + e;
+                document.getElementById('joinBtn').disabled = false;
+            }
+        }
+        
+        async function checkMatch() {
+            try {
+                const res = await fetch(`${API}/lobby/status`);
+                const data = await res.json();
+                
+                // Try joining again
+                const joinRes = await fetch(`${API}/lobby/join`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: document.getElementById('playerName').value,
+                        llm: document.getElementById('llmChoice').value
+                    })
+                });
+                
+                const joinData = await joinRes.json();
+                
+                if (joinData.status === 'matched') {
+                    clearInterval(pollInterval);
+                    gameId = joinData.game_id;
+                    location.reload();
+                }
+                
+            } catch(e) {
+                console.error(e);
+            }
+        }
+        
+        async function leaveLobby() {
+            clearInterval(pollInterval);
+            
+            await fetch(`${API}/lobby/leave`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ player_id: playerId })
+            });
+            
+            location.reload();
+        }
+        
+        async function chooseGame(gameType) {
+            try {
+                const res = await fetch(`${API}/lobby/game/${gameId}/choose`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ game_type: gameType })
+                });
+                
+                const data = await res.json();
+                
+                document.getElementById('chooseGame').classList.add('hidden');
+                document.getElementById('playingGame').classList.remove('hidden');
+                
+                if (gameType === 'rps') {
+                    showRPSGame();
+                }
+                
+            } catch(e) {
+                alert('Error: ' + e);
+            }
+        }
+        
+        function showRPSGame() {
+            const content = document.getElementById('gameContent');
+            content.innerHTML = `
+                <div class="flex justify-center gap-4 mb-4">
+                    <button onclick="makeMove('rock')" class="text-4xl bg-gray-700 p-4 rounded hover:bg-gray-600">🪨</button>
+                    <button onclick="makeMove('paper')" class="text-4xl bg-gray-700 p-4 rounded hover:bg-gray-600">📄</button>
+                    <button onclick="makeMove('scissors')" class="text-4xl bg-gray-700 p-4 rounded hover:bg-gray-600">✂️</button>
+                </div>
+                <p id="gameStatus" class="text-gray-400">Choose your move!</p>
+            `;
+        }
+        
+        async function makeMove(move) {
+            try {
+                const res = await fetch(`${API}/lobby/game/${gameId}/move`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ player_id: playerId, move })
+                });
+                
+                const data = await res.json();
+                
+                if (data.status === 'finished') {
+                    const emojis = { rock: '🪨', paper: '📄', scissors: '✂️' };
+                    document.getElementById('gameStatus').innerHTML = `
+                        <p class="text-2xl">${emojis[data.move1]} vs ${emojis[data.move2]}</p>
+                        <p class="text-xl font-bold mt-2">
+                            ${data.winner === 'player1' ? '🎉 You Won!' : data.winner === 'player2' ? '😢 You Lost!' : '🤝 Draw!'}
+                        </p>
+                    `;
+                } else {
+                    document.getElementById('gameStatus').textContent = 'Waiting for opponent...';
+                }
+                
+            } catch(e) {
+                alert('Error: ' + e);
+            }
+        }
+        
+        async function createTournament() {
+            // For now, redirect to tournament page
+            window.location.href = '/tournament.html';
+        }
+        
+        async function joinTournament() {
+            window.location.href = '/tournament.html';
+        }
+    </script>
+</body>
+</html>
